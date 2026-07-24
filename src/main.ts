@@ -3,6 +3,7 @@ import { BoardView } from "./board";
 import { PuzzlePool } from "./pool";
 import { Difficulty, DIFFICULTIES, Move } from "./types";
 import { SoundManager, Sfx } from "./sound";
+import { loadSettings, saveSettings, OPTION_INFO } from "./settings";
 import {
   initTelegram,
   prefersDark,
@@ -21,6 +22,7 @@ const app = document.getElementById("app")!;
 const game = new SudokuGame();
 const sound = new SoundManager();
 const pool = new PuzzlePool();
+const settings = loadSettings();
 
 // Web Audio starts suspended until a gesture (iOS especially). Unlock on the
 // first pointer/key anywhere, once.
@@ -171,6 +173,12 @@ function showMenu(): void {
   resumeBtn.onclick = () => showGame(null, true);
   menu.appendChild(resumeBtn);
 
+  const aidsBtn = document.createElement("button");
+  aidsBtn.className = "secondary";
+  aidsBtn.textContent = "⚙ Aids";
+  aidsBtn.onclick = showSettings;
+  menu.appendChild(aidsBtn);
+
   app.appendChild(menu);
 }
 
@@ -195,12 +203,17 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
     save();
     showMenu();
   };
+  const aidsBtn = document.createElement("button");
+  aidsBtn.className = "icon";
+  aidsBtn.textContent = "⚙";
+  aidsBtn.setAttribute("aria-label", "Aids");
+  aidsBtn.onclick = showSettings;
   const newBtn = document.createElement("button");
   newBtn.textContent = "New";
   newBtn.onclick = () => {
     if (!generating) startNewGame(game.difficulty);
   };
-  topbar.append(menuBtn, newBtn);
+  topbar.append(menuBtn, aidsBtn, newBtn);
 
   statusEl = el("div", "status");
 
@@ -244,7 +257,7 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
   root.append(topbar, statusEl, boardWrap, numbers, actions);
   app.appendChild(root);
 
-  board = new BoardView(canvas, game, dark);
+  board = new BoardView(canvas, game, dark, settings);
   sizeBoard();
 
   game.onChange = () => {
@@ -314,11 +327,81 @@ function refreshPencilStyle(): void {
   pencilBtn.classList.toggle("pencil-on", game.pencil);
 }
 
+/** Re-apply aids to the current view after a settings toggle (no-op on the menu). */
+function applySettingsLive(): void {
+  board?.draw();
+  refreshNumberKeys();
+}
+
+/**
+ * The Aids options overlay — a modal sheet shared by the menu and game screens.
+ * Each toggle flips a setting live and persists it; each (i) expands an inline
+ * explanation (touch-friendly, unlike a hover tooltip).
+ */
+function showSettings(): void {
+  const overlay = el("div", "overlay");
+  overlay.onclick = (e) => {
+    if (e.target === overlay) overlay.remove(); // tap the backdrop to dismiss
+  };
+
+  const sheet = el("div", "sheet");
+
+  const head = el("div", "sheet-head");
+  const h2 = el("h2");
+  h2.textContent = "Aids";
+  const done = document.createElement("button");
+  done.className = "done";
+  done.textContent = "Done";
+  done.onclick = () => overlay.remove();
+  head.append(h2, done);
+  sheet.appendChild(head);
+
+  for (const opt of OPTION_INFO) {
+    const option = el("div", "option");
+
+    const row = el("div", "option-row");
+    const label = el("span", "option-label");
+    label.textContent = opt.label;
+
+    const info = document.createElement("button");
+    info.className = "info";
+    info.textContent = "i";
+    info.setAttribute("aria-label", `About: ${opt.label}`);
+    info.onclick = () => option.classList.toggle("expanded");
+
+    const sw = document.createElement("label");
+    sw.className = "switch";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = settings[opt.key];
+    checkbox.onchange = () => {
+      settings[opt.key] = checkbox.checked;
+      saveSettings(settings);
+      applySettingsLive();
+    };
+    const track = el("span", "track");
+    sw.append(checkbox, track);
+
+    row.append(label, info, sw);
+
+    const help = el("p", "option-help");
+    help.textContent = opt.help;
+
+    option.append(row, help);
+    sheet.appendChild(option);
+  }
+
+  overlay.appendChild(sheet);
+  app.appendChild(overlay);
+}
+
 /** Hide keypad digits that a peer of the selected cell already holds correctly. */
 function refreshNumberKeys(): void {
   if (numberButtons.length === 0) return;
-  const blocked = game.unavailableForSelected();
-  for (let n = 1; n <= 9; n++) numberButtons[n - 1].classList.toggle("used", blocked[n]);
+  const blocked = settings.candidateNarrowing ? game.unavailableForSelected() : null;
+  for (let n = 1; n <= 9; n++) {
+    numberButtons[n - 1].classList.toggle("used", blocked ? blocked[n] : false);
+  }
 }
 
 function placeNumber(n: number): void {

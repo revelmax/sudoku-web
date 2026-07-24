@@ -1,4 +1,5 @@
 import { SudokuGame } from "./game";
+import { Settings } from "./settings";
 
 /**
  * Draws the 9x9 grid onto a <canvas> and handles cell selection by pointer.
@@ -66,6 +67,7 @@ export class BoardView {
     private canvas: HTMLCanvasElement,
     private game: SudokuGame,
     dark: boolean,
+    private settings: Settings,
   ) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2D canvas context unavailable");
@@ -113,7 +115,7 @@ export class BoardView {
     const sel = g.selected;
     const activeNumber = sel >= 0 ? g.board[sel] : 0;
 
-    if (sel >= 0) {
+    if (sel >= 0 && this.settings.highlightPeers) {
       const sr = Math.floor(sel / 9);
       const sc = sel % 9;
       ctx.fillStyle = p.peerFill;
@@ -131,7 +133,7 @@ export class BoardView {
       }
     }
 
-    if (activeNumber !== 0) {
+    if (activeNumber !== 0 && this.settings.highlightSameNumbers) {
       ctx.fillStyle = p.sameFill;
       for (let i = 0; i < 81; i++) {
         if (i !== sel && g.board[i] === activeNumber) this.fillCell(Math.floor(i / 9), i % 9);
@@ -165,7 +167,8 @@ export class BoardView {
       if (v === 0) continue;
       const r = Math.floor(i / 9);
       const c = i % 9;
-      ctx.fillStyle = g.given[i] ? p.givenText : g.isError(i) ? p.conflictText : p.userText;
+      const showError = g.isError(i) && this.settings.highlightConflicts;
+      ctx.fillStyle = g.given[i] ? p.givenText : showError ? p.conflictText : p.userText;
       ctx.fillText(String(v), c * cell + cell / 2, r * cell + cell / 2);
     }
 
