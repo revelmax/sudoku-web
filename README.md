@@ -1,5 +1,7 @@
 # Sudoku (web / Telegram Mini App)
 
+The sound of tomorrow the music of today.
+
 A web port of the Android Sudoku app, playable in a browser or as a Telegram
 Mini App on iPhone — no Mac, Xcode, or App Store needed.
 
