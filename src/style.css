@@ -185,6 +185,12 @@ canvas {
   background: var(--btn-bg);
 }
 
+/* Hand-holding aid: a digit already used (correctly) by the selected cell's
+   row/column/box is hidden, but keeps its slot so the keypad never reshuffles. */
+.numbers button.used {
+  visibility: hidden;
+}
+
 .actions {
   display: flex;
   gap: 8px;

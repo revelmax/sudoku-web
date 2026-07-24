@@ -263,6 +263,34 @@ export class SudokuGame {
     return true;
   }
 
+  /**
+   * Digits (1..9) that can no longer legally go in the selected cell because a
+   * peer in its row, column, or box already holds them — counting only clues and
+   * *correct* user entries, so a wrong placement never hides a still-usable digit.
+   * Returns a length-10 array indexed by digit (index 0 unused); all false when
+   * nothing is selected. Powers the keypad's "hide used numbers" aid.
+   */
+  unavailableForSelected(): boolean[] {
+    const blocked = new Array(10).fill(false);
+    const i = this.selected;
+    if (i < 0) return blocked;
+    const consider = (j: number) => {
+      const v = this.board[j];
+      if (v !== 0 && (this.given[j] || v === this.solution[j])) blocked[v] = true;
+    };
+    const r = Math.floor(i / 9);
+    const c = i % 9;
+    for (let k = 0; k < 9; k++) {
+      consider(r * 9 + k);
+      consider(k * 9 + c);
+    }
+    const br = Math.floor(r / 3) * 3;
+    const bc = Math.floor(c / 3) * 3;
+    for (let dr = 0; dr < 3; dr++)
+      for (let dc = 0; dc < 3; dc++) consider((br + dr) * 9 + (bc + dc));
+    return blocked;
+  }
+
   // --- Persistence ---------------------------------------------------------
 
   /** Serialize the full state to a single string. */

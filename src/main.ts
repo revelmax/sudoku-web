@@ -180,6 +180,7 @@ let statusEl: HTMLElement;
 let undoBtn: HTMLButtonElement;
 let pencilBtn: HTMLButtonElement;
 let canvas: HTMLCanvasElement;
+let numberButtons: HTMLButtonElement[] = [];
 
 function showGame(diff: Difficulty | null, resume: boolean): void {
   app.innerHTML = "";
@@ -209,10 +210,12 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
 
   // Number keys 1..9
   const numbers = el("div", "numbers");
+  numberButtons = [];
   for (let n = 1; n <= 9; n++) {
     const b = document.createElement("button");
     b.textContent = String(n);
     b.onclick = () => placeNumber(n);
+    numberButtons.push(b);
     numbers.appendChild(b);
   }
 
@@ -247,6 +250,7 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
   game.onChange = () => {
     board?.draw();
     refreshStatus();
+    refreshNumberKeys();
     const nowSolved = game.isSolved();
     if (nowSolved && !solvedState) {
       hapticSuccess();
@@ -308,6 +312,13 @@ function refreshStatus(): void {
 
 function refreshPencilStyle(): void {
   pencilBtn.classList.toggle("pencil-on", game.pencil);
+}
+
+/** Hide keypad digits that a peer of the selected cell already holds correctly. */
+function refreshNumberKeys(): void {
+  if (numberButtons.length === 0) return;
+  const blocked = game.unavailableForSelected();
+  for (let n = 1; n <= 9; n++) numberButtons[n - 1].classList.toggle("used", blocked[n]);
 }
 
 function placeNumber(n: number): void {
