@@ -127,10 +127,13 @@ export class SudokuGame {
       this.notes[i][n] = !this.notes[i][n];
       move = Move.NOTE;
     } else {
+      const prev = this.board[i];
       this.board[i] = n;
       this.clearNotes(i);
       this.clearPeerNotes(i, n);
-      if (n !== this.solution[i]) this.mistakes++;
+      // Count a mistake only when the value actually changes to a wrong one, so
+      // re-entering the same wrong number doesn't keep inflating the counter.
+      if (n !== this.solution[i] && n !== prev) this.mistakes++;
       if (!this.started) this.started = true;
       move = Move.VALUE;
     }
