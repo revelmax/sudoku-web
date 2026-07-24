@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch: # lets you trigger a deploy manually from the Actions tab
 
 # Permissions the deploy job needs to publish to Pages.
