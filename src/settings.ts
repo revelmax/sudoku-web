@@ -15,7 +15,7 @@ const DEFAULTS: Settings = {
   highlightSameNumbers: true,
   highlightConflicts: true,
   highlightPeers: true,
-  candidateNarrowing: true,
+  candidateNarrowing: false,
 };
 
 /** Load settings, filling any missing keys from defaults (forward-compatible). */
