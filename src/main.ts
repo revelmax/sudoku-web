@@ -1,6 +1,8 @@
 import { SudokuGame } from "./game";
 import { BoardView } from "./board";
+import { PuzzlePool } from "./pool";
 import { Difficulty, DIFFICULTIES, Move } from "./types";
+import { SoundManager, Sfx } from "./sound";
 import {
   initTelegram,
   prefersDark,
@@ -17,6 +19,18 @@ const dark = prefersDark();
 
 const app = document.getElementById("app")!;
 const game = new SudokuGame();
+const sound = new SoundManager();
+const pool = new PuzzlePool();
+
+// Web Audio starts suspended until a gesture (iOS especially). Unlock on the
+// first pointer/key anywhere, once.
+function unlockAudioOnce(): void {
+  sound.unlock();
+  window.removeEventListener("pointerdown", unlockAudioOnce);
+  window.removeEventListener("keydown", unlockAudioOnce);
+}
+window.addEventListener("pointerdown", unlockAudioOnce);
+window.addEventListener("keydown", unlockAudioOnce);
 
 /** Create an element with an optional class. */
 function el(tag: string, className?: string): HTMLElement {
@@ -28,6 +42,7 @@ function el(tag: string, className?: string): HTMLElement {
 let board: BoardView | null = null;
 let solvedState = false;
 let generating = false;
+let genToken = 0; // guards against a stale async puzzle overwriting a newer game
 
 // --- Timer: game.elapsedMs is the accumulated total; runningSince marks the
 // current running segment (0 = paused). A 1s tick refreshes the display. ---
@@ -206,7 +221,7 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
   undoBtn = document.createElement("button");
   undoBtn.textContent = "↶ Undo";
   undoBtn.onclick = () => {
-    if (!generating) game.undo();
+    if (!generating && game.undo()) sound.play(Sfx.ERASE);
   };
   pencilBtn = document.createElement("button");
   pencilBtn.textContent = "✏️ Notes";
@@ -219,7 +234,7 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
   const clearBtn = document.createElement("button");
   clearBtn.textContent = "Clear";
   clearBtn.onclick = () => {
-    if (!generating) game.clear();
+    if (!generating && game.clear()) sound.play(Sfx.ERASE);
   };
   actions.append(undoBtn, pencilBtn, clearBtn);
 
@@ -233,7 +248,10 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
     board?.draw();
     refreshStatus();
     const nowSolved = game.isSolved();
-    if (nowSolved && !solvedState) hapticSuccess();
+    if (nowSolved && !solvedState) {
+      hapticSuccess();
+      sound.play(Sfx.SUCCESS);
+    }
     solvedState = nowSolved;
     save();
   };
@@ -251,22 +269,32 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
 }
 
 /**
- * Start a new game. Generation can take a second or two for MEDIUM/HARD, so we
- * show "Generating…", yield once to let the browser paint that, then generate.
+ * Start a new game. Prefer a pre-generated puzzle from the pool (instant); only
+ * if none is warmed yet do we show "Generating…" and wait for the worker.
  */
 function startNewGame(diff: Difficulty): void {
   hardResetTimer();
   solvedState = false;
+  board?.cancelAnimations();
+
+  const ready = pool.take(diff);
+  if (ready) {
+    generating = false;
+    canvas.classList.remove("hidden");
+    game.loadPuzzle(ready); // triggers onChange → refreshStatus + save
+    return;
+  }
+
   generating = true;
   canvas.classList.add("hidden");
   statusEl.textContent = "Generating…";
-
-  setTimeout(() => {
-    const puzzle = game.generatePuzzle(diff);
+  const token = ++genToken;
+  pool.request(diff).then((puzzle) => {
+    if (token !== genToken) return; // a newer request superseded this one
     generating = false;
     canvas.classList.remove("hidden");
     game.loadPuzzle(puzzle); // triggers onChange → refreshStatus + save
-  }, 16);
+  });
 }
 
 function refreshStatus(): void {
@@ -288,14 +316,29 @@ function placeNumber(n: number): void {
     case Move.VALUE: {
       const cell = game.selected;
       const wrong = game.isError(cell);
-      if (wrong) hapticError();
-      else haptic(true);
+      if (wrong) {
+        hapticError();
+        sound.play(Sfx.ERROR);
+      } else {
+        haptic(true);
+        sound.play(Sfx.PLACE);
+      }
       startTimer();
-      if (!wrong && game.isSolved()) pauseTimer();
+      if (!wrong) {
+        if (game.isSolved()) {
+          pauseTimer();
+          board?.playWin();
+        } else {
+          const completed = game.newlyCompletedCells(cell);
+          board?.flashUnits(completed);
+          if (completed.length > 0) sound.chime();
+        }
+      }
       break;
     }
     case Move.NOTE:
       haptic(false);
+      sound.play(Sfx.NOTE);
       break;
     case Move.NONE:
       break;

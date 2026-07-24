@@ -46,11 +46,21 @@ const DARK: Palette = {
   sameFill: "#4C4A2E",
 };
 
+const FLASH_MS = 650;
+const WIN_MS = 1600;
+
 export class BoardView {
   private ctx: CanvasRenderingContext2D;
   private cssSize = 0; // logical (CSS px) side length
   private cell = 0;
   private palette: Palette;
+
+  // Completion animations. flash* = a row/col/box just finished; win* = whole board.
+  // Each *Start holds a performance.now() timestamp, or 0 when inactive.
+  private flashCells: number[] = [];
+  private flashStart = 0;
+  private winStart = 0;
+  private rafId: number | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -176,6 +186,85 @@ export class BoardView {
         ctx.fillText(String(n), x, y);
       }
     }
+
+    this.drawAnimations();
+  }
+
+  /** Row/col/box completion pulses and the full-solve gold wave (overlaid last). */
+  private drawAnimations(): void {
+    const ctx = this.ctx;
+    const t = performance.now();
+
+    // Row/col/box completion: a green pulse over the finished cells.
+    if (this.flashStart !== 0 && this.flashCells.length > 0) {
+      const f = (t - this.flashStart) / FLASH_MS;
+      const alpha = clamp01(Math.sin(Math.PI * f)) * 0.55;
+      ctx.fillStyle = `rgba(76, 175, 80, ${alpha})`; // #4CAF50
+      for (const idx of this.flashCells) this.fillCell(Math.floor(idx / 9), idx % 9);
+    }
+
+    // Full solve: a gold wave sweeping diagonally across the board.
+    if (this.winStart !== 0) {
+      const winFraction = (t - this.winStart) / WIN_MS;
+      for (let i = 0; i < 81; i++) {
+        const r = Math.floor(i / 9);
+        const c = i % 9;
+        const delay = ((r + c) / 16) * 0.6;
+        const local = (winFraction - delay) / 0.4;
+        if (local <= 0 || local >= 1) continue;
+        const alpha = clamp01(Math.sin(Math.PI * local)) * 0.69;
+        if (alpha <= 0) continue;
+        ctx.fillStyle = `rgba(255, 193, 7, ${alpha})`; // #FFC107
+        this.fillCell(r, c);
+      }
+    }
+  }
+
+  /** Pulse the given cells green (a row/column/box was just completed). */
+  flashUnits(cells: number[]): void {
+    if (cells.length === 0) return;
+    this.flashCells = cells;
+    this.flashStart = performance.now();
+    this.startLoop();
+  }
+
+  /** Celebratory gold wave for a completed puzzle. */
+  playWin(): void {
+    this.winStart = performance.now();
+    this.startLoop();
+  }
+
+  cancelAnimations(): void {
+    this.flashStart = 0;
+    this.winStart = 0;
+    this.flashCells = [];
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.draw();
+  }
+
+  /** Drive redraws while any animation is active, then expire finished ones. */
+  private startLoop(): void {
+    if (this.rafId !== null) return;
+    const tick = () => {
+      const t = performance.now();
+      if (this.flashStart !== 0 && t - this.flashStart >= FLASH_MS) {
+        this.flashStart = 0;
+        this.flashCells = [];
+      }
+      if (this.winStart !== 0 && t - this.winStart >= WIN_MS) this.winStart = 0;
+
+      this.draw();
+
+      if (this.flashStart !== 0 || this.winStart !== 0) {
+        this.rafId = requestAnimationFrame(tick);
+      } else {
+        this.rafId = null;
+      }
+    };
+    this.rafId = requestAnimationFrame(tick);
   }
 
   private fillCell(r: number, c: number): void {
@@ -185,4 +274,8 @@ export class BoardView {
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }

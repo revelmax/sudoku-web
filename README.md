@@ -44,25 +44,23 @@ For quick testing without hosting, run `npm run dev -- --host` and expose it via
 a tunnel (e.g. `cloudflared tunnel --url http://localhost:5173`), then use that
 HTTPS URL in step 3.
 
-## What's implemented (core)
+## What's implemented
 
 - 3 difficulties (Easy / Medium / Hard), graded by the same logical solver as
   the Android app
-- Uniquely-solvable generation (backtracking + MRV), on demand
+- Uniquely-solvable generation (backtracking + MRV)
 - Cell selection, number entry, pencil notes, undo, clear
 - Peer / same-number / selection highlights; conflict coloring
 - Timer, mistake count, difficulty display
 - Save / resume via `localStorage`, auto-saved on every change and on background
 - Light/dark board palettes (follows Telegram theme or OS preference)
 - Haptics (Telegram HapticFeedback on iOS; `navigator.vibrate` elsewhere)
-
-## Deferred (easy follow-ups)
-
-- **Sound effects** — the 5 `.wav` files from the Android app
-  (`res/raw/*.wav`) drop straight into a Web Audio player.
-- **Completion animations** — the green unit-flash and gold win-wave from
-  `SudokuView` (the `flashUnits` / `playWin` logic).
-- **Puzzle pre-warm pool** — generate puzzles in a Web Worker so starting a new
-  game is instant (Medium generation currently blocks ~0.3s behind a
-  "Generating…" state).
+- **Sound effects** — the app's 5 `.wav`s played via Web Audio (`src/sound.ts`),
+  unlocked on first tap for iOS
+- **Completion animations** — green unit-flash and gold win-wave, ported from
+  `SudokuView` into a `requestAnimationFrame` loop (`src/board.ts`)
+- **Web Worker puzzle pool** — puzzles are pre-generated off the main thread and
+  cached (persisted to `localStorage`), so a new game is instant; falls back to
+  synchronous generation where Workers are unavailable (`src/pool.ts`,
+  `src/pool-worker.ts`)
 ```
