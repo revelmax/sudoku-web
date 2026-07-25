@@ -12,7 +12,10 @@ import { grade } from "./grader";
 const VERSION = "1";
 const MAX_HISTORY = 200;
 const GEN_ATTEMPTS = 40;
-const MEDIUM_BASE_ATTEMPTS = 6;
+const MEDIUM_BASE_ATTEMPTS = 8;
+
+/** Ceiling on clues while building a MEDIUM puzzle — see `buildMedium`. */
+const MEDIUM_MAX_CLUES = CLUES[Difficulty.MEDIUM] + 2;
 
 interface Snapshot {
   board: number[];
@@ -387,25 +390,41 @@ export class SudokuGame {
     return last;
   }
 
+  /**
+   * Build a MEDIUM puzzle by handing clues back to a HARD one until it grades as
+   * MEDIUM. A clue that leaves the puzzle HARD is kept, so the count only grows
+   * — hence the budget: a base that overshoots without landing on MEDIUM is
+   * abandoned for a fresh one. Without it, an unlucky base kept absorbing clues
+   * until the board was nearly filled in (50+ clues, and often not even MEDIUM).
+   */
   private buildMedium(): [string, number[]] {
-    let fallback: [string, number[]] | null = null;
     for (let a = 0; a < MEDIUM_BASE_ATTEMPTS; a++) {
       const [str, solution] = this.buildTargeting(Difficulty.HARD);
       const puzzle = new Array(81);
-      for (let i = 0; i < 81; i++) puzzle[i] = str.charCodeAt(i) - 48;
+      let clues = 0;
+      for (let i = 0; i < 81; i++) {
+        puzzle[i] = str.charCodeAt(i) - 48;
+        if (puzzle[i] !== 0) clues++;
+      }
       const emptyPositions = shuffled(
         Array.from({ length: 81 }, (_, i) => i).filter((i) => puzzle[i] === 0),
       );
       for (const pos of emptyPositions) {
+        if (clues >= MEDIUM_MAX_CLUES) break; // budget spent — try a fresh base
         puzzle[pos] = solution[pos];
+        clues++;
         const g = grade(this.gridToStr(puzzle));
         if (g === Difficulty.MEDIUM) return [this.gridToStr(puzzle), solution];
-        if (g === Difficulty.EASY) puzzle[pos] = 0; // over-eases; undo, try another
+        if (g === Difficulty.EASY) {
+          puzzle[pos] = 0; // over-eases; undo, try another
+          clues--;
+        }
         // HARD: still hard, keep the clue and continue
       }
-      fallback = [this.gridToStr(puzzle), solution];
     }
-    return fallback ?? this.buildTargeting(Difficulty.HARD);
+    // No base landed on MEDIUM: a plain clue-count-targeted puzzle at least
+    // looks the part, rather than a board that is most of the way solved.
+    return this.buildTargeting(Difficulty.MEDIUM);
   }
 
   private gridToStr(grid: number[]): string {
