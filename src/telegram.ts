@@ -13,6 +13,8 @@ interface TgWebApp {
   ready(): void;
   expand(): void;
   colorScheme: "light" | "dark";
+  /** "unknown" whenever the SDK has no Telegram host behind it. */
+  platform: string;
   HapticFeedback?: TgHaptic;
   onEvent(event: string, cb: () => void): void;
   setHeaderColor?(color: string): void;
@@ -25,10 +27,20 @@ declare global {
   }
 }
 
-const wa = window.Telegram?.WebApp;
+const sdk = window.Telegram?.WebApp;
 
-/** True when running inside the Telegram in-app browser. */
-export const inTelegram = !!wa;
+/**
+ * True only when a real Telegram host is behind the SDK.
+ *
+ * telegram-web-app.js is loaded unconditionally from index.html, so
+ * `window.Telegram.WebApp` exists on an ordinary page too — testing the object
+ * alone would make every browser look like Telegram. Outside Telegram the SDK
+ * reports platform "unknown" and stubs `colorScheme` to "light".
+ */
+export const inTelegram = !!sdk && sdk.platform !== "unknown";
+
+/** The SDK, but only when it is actually backed by Telegram. */
+const wa = inTelegram ? sdk : undefined;
 
 /** Tell Telegram we're ready and take the full viewport. */
 export function initTelegram(): void {
