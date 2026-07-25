@@ -121,13 +121,17 @@ export class SudokuGame {
     if (i < 0 || this.given[i] || n < 1 || n > 9) return Move.NONE;
     if (this.pencil && this.board[i] !== 0) return Move.NONE;
 
-    this.pushHistory();
     let move: Move;
     if (this.pencil) {
+      this.pushHistory();
       this.notes[i][n] = !this.notes[i][n];
       move = Move.NOTE;
     } else {
       const prev = this.board[i];
+      // Re-entering the value that is already there changes nothing, so don't
+      // record it: otherwise tapping "5" five times would take five undos.
+      if (prev === n && this.notesEmpty(i) && !this.peerHasNote(i, n)) return Move.VALUE;
+      this.pushHistory();
       this.board[i] = n;
       this.clearNotes(i);
       this.clearPeerNotes(i, n);
@@ -216,6 +220,22 @@ export class SudokuGame {
   private notesEmpty(i: number): boolean {
     for (let k = 1; k <= 9; k++) if (this.notes[i][k]) return false;
     return true;
+  }
+
+  /** True if any peer of cell [i] still carries [n] as a pencil mark. */
+  private peerHasNote(i: number, n: number): boolean {
+    const r = Math.floor(i / 9);
+    const c = i % 9;
+    for (let k = 0; k < 9; k++) {
+      if (this.notes[r * 9 + k][n] || this.notes[k * 9 + c][n]) return true;
+    }
+    const br = Math.floor(r / 3) * 3;
+    const bc = Math.floor(c / 3) * 3;
+    for (let dr = 0; dr < 3; dr++)
+      for (let dc = 0; dc < 3; dc++) {
+        if (this.notes[(br + dr) * 9 + (bc + dc)][n]) return true;
+      }
+    return false;
   }
 
   /** Remove candidate [n] from the pencil marks of every peer of cell [i]. */
