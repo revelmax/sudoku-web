@@ -17,7 +17,6 @@ const MEDIUM_BASE_ATTEMPTS = 6;
 interface Snapshot {
   board: number[];
   notes: boolean[][];
-  mistakes: number;
   selected: number;
 }
 
@@ -191,13 +190,16 @@ export class SudokuGame {
     return this.history.length > 0;
   }
 
-  /** Revert the last move. Returns true if there was something to undo. */
+  /**
+   * Revert the last move. Returns true if there was something to undo. The
+   * mistake count is deliberately left alone: a mistake already made stands,
+   * so undo can't be used to wipe it.
+   */
   undo(): boolean {
     const s = this.history.pop();
     if (!s) return false;
     for (let i = 0; i < 81; i++) this.board[i] = s.board[i];
     for (let i = 0; i < 81; i++) this.notes[i] = s.notes[i].slice();
-    this.mistakes = s.mistakes;
     this.selected = s.selected;
     this.onChange?.();
     return true;
@@ -207,7 +209,6 @@ export class SudokuGame {
     this.history.push({
       board: this.board.slice(),
       notes: this.notes.map((n) => n.slice()),
-      mistakes: this.mistakes,
       selected: this.selected,
     });
     if (this.history.length > MAX_HISTORY) this.history.shift();
