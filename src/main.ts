@@ -41,6 +41,44 @@ function el(tag: string, className?: string): HTMLElement {
   return e;
 }
 
+/**
+ * Icon set for the game screen's controls. Inline SVG rather than emoji so the
+ * glyphs are identical across platforms and inherit the button's color (which
+ * matters for the pencil button's active state). Stroke styling lives in CSS.
+ */
+const ICONS = {
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  gear:
+    '<circle cx="12" cy="12" r="3"/>' +
+    '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  refresh:
+    '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>' +
+    '<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  undo: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
+  pencil: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
+  erase:
+    '<path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>' +
+    '<line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/>',
+} as const;
+
+/**
+ * An icon-only button. The name is kept as aria-label and tooltip so the control
+ * is still identifiable to screen readers and on hover.
+ */
+function iconButton(
+  name: keyof typeof ICONS,
+  label: string,
+  onclick: () => void,
+): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.className = "icon-btn";
+  b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+  b.setAttribute("aria-label", label);
+  b.title = label;
+  b.onclick = onclick;
+  return b;
+}
+
 let board: BoardView | null = null;
 let solvedState = false;
 let generating = false;
@@ -194,25 +232,17 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
   app.innerHTML = "";
   const root = el("div", "game");
 
-  // Top bar: Menu | New
+  // Top bar: Menu | Aids | New
   const topbar = el("div", "topbar");
-  const menuBtn = document.createElement("button");
-  menuBtn.textContent = "☰ Menu";
-  menuBtn.onclick = () => {
+  const menuBtn = iconButton("menu", "Menu", () => {
     pauseTimer();
     save();
     showMenu();
-  };
-  const aidsBtn = document.createElement("button");
-  aidsBtn.className = "icon";
-  aidsBtn.textContent = "⚙";
-  aidsBtn.setAttribute("aria-label", "Aids");
-  aidsBtn.onclick = showSettings;
-  const newBtn = document.createElement("button");
-  newBtn.textContent = "New";
-  newBtn.onclick = () => {
+  });
+  const aidsBtn = iconButton("gear", "Aids", showSettings);
+  const newBtn = iconButton("refresh", "New game", () => {
     if (!generating) startNewGame(game.difficulty);
-  };
+  });
   topbar.append(menuBtn, aidsBtn, newBtn);
 
   statusEl = el("div", "status");
@@ -234,24 +264,18 @@ function showGame(diff: Difficulty | null, resume: boolean): void {
 
   // Actions: Undo | Notes | Clear
   const actions = el("div", "actions");
-  undoBtn = document.createElement("button");
-  undoBtn.textContent = "↶ Undo";
-  undoBtn.onclick = () => {
+  undoBtn = iconButton("undo", "Undo", () => {
     if (!generating && game.undo()) sound.play(Sfx.ERASE);
-  };
-  pencilBtn = document.createElement("button");
-  pencilBtn.textContent = "✏️ Notes";
-  pencilBtn.onclick = () => {
+  });
+  pencilBtn = iconButton("pencil", "Notes", () => {
     if (generating) return;
     game.pencil = !game.pencil;
     refreshPencilStyle();
     save();
-  };
-  const clearBtn = document.createElement("button");
-  clearBtn.textContent = "Clear";
-  clearBtn.onclick = () => {
+  });
+  const clearBtn = iconButton("erase", "Clear", () => {
     if (!generating && game.clear()) sound.play(Sfx.ERASE);
-  };
+  });
   actions.append(undoBtn, pencilBtn, clearBtn);
 
   root.append(topbar, statusEl, boardWrap, numbers, actions);
